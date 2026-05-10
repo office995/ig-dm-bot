@@ -61,12 +61,12 @@ ${extraInstruction}`
 
   const fullPrompt = SYSTEM_PROMPT + contextNote + avoidNote + extraNote;
 
-  let text = await callOpenAIRaw('gpt-4o-mini', fullPrompt, messages, 80);
+  let text = await callOpenAIRaw('gpt-5.4-mini', fullPrompt, messages, 80);
   let finalText = humanizeReply(enforceLength(text));
 
   if (isTooSimilarReply(messages, finalText)) {
     text = await callOpenAIRaw(
-      'gpt-4o-mini',
+      'gpt-5.4-mini',
       fullPrompt + '\n\nsay the same thing in a fresh, natural, conversational way. keep it concise and clear.',
       messages,
       80,

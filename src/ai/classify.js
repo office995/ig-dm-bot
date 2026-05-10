@@ -14,7 +14,7 @@ function createClassifier(logToElla) {
 
     try {
       const result = await callOpenAIRaw(
-        'gpt-4o-mini',
+        'gpt-5.4-mini',
         CLASSIFY_PROMPT,
         [{ role: 'user', content: message }],
         10
