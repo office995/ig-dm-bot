@@ -1,0 +1,104 @@
+{
+  "name": "Instagram DM Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manychat-dm",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "ManyChat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "={{ $env.WEBHOOK_SECRET || 'testSecret123' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contact_id",
+              "value": "={{ $json.body.contact_id }}"
+            },
+            {
+              "name": "contact_name",
+              "value": "={{ $json.body.contact_name }}"
+            },
+            {
+              "name": "latest_message",
+              "value": "={{ $json.body.latest_message }}"
+            },
+            {
+              "name": "message_id",
+              "value": "={{ $json.body.message_id || $json.body.id || '' }}"
+            },
+            {
+              "name": "event_id",
+              "value": "={{ $json.body.event_id || $json.body.message_id || $json.body.id || '' }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.body.timestamp || $json.body.sent_at || $json.body.created_at || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-request",
+      "name": "Send to DM Server",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-node",
+      "name": "Respond to ManyChat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [720, 300]
+    }
+  ],
+  "connections": {
+    "ManyChat Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send to DM Server",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to DM Server": {
+      "main": [
+        [
+          {
+            "node": "Respond to ManyChat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

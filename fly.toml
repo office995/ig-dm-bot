@@ -1,0 +1,22 @@
+app = 'jungle-dm-ai'
+primary_region = 'iad'
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[env]
+  PORT = '3000'
+  NODE_ENV = 'production'
+  QUIET_WINDOW_MS = '5000'
+  MAX_BURST_WINDOW_MS = '8000'

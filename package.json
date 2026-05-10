@@ -1,0 +1,16 @@
+{
+  "name": "jungle-dm-ai",
+  "version": "1.0.0",
+  "description": "The Jungle — Hybrid OFM Instagram DM sales automation",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.100.0",
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

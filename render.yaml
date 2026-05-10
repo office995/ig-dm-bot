@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ig-dm-bot
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: DASHBOARD_PASS
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: QUIET_WINDOW_MS
+        value: 10000
+      - key: MAX_BURST_WINDOW_MS
+        value: 15000
+      - key: PORT
+        value: 3000

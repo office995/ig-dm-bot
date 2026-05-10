@@ -1,0 +1,7 @@
+node_modules
+.env
+*.log
+.git
+deploy.sh
+README_DEPLOY.md
+.env.example
