@@ -32,7 +32,7 @@ function loadDotEnv() {
 loadDotEnv();
 
 const PORT = Number(process.env.PORT || 3000);
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const DASHBOARD_PASS = process.env.DASHBOARD_PASS || '';
 const QUIET_WINDOW_MS = Number(process.env.QUIET_WINDOW_MS || 10000);
@@ -42,7 +42,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
 module.exports = {
   PORT,
-  OPENAI_API_KEY,
+  ANTHROPIC_API_KEY,
   WEBHOOK_SECRET,
   DASHBOARD_PASS,
   QUIET_WINDOW_MS,

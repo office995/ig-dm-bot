@@ -33,7 +33,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     service: 'ig-dm-bot',
-    openai: process.env.OPENAI_API_KEY ? 'set' : 'missing',
+    anthropic: process.env.ANTHROPIC_API_KEY ? 'set' : 'missing',
     webhook_secret: process.env.WEBHOOK_SECRET ? 'set' : 'missing',
     port: PORT,
     uptime: Math.round(process.uptime()),

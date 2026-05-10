@@ -6,7 +6,7 @@ const {
   followUps,
   leadTypes,
 } = require('../state/memory');
-const { OPENAI_API_KEY, WEBHOOK_SECRET } = require('../config/env');
+const { ANTHROPIC_API_KEY, WEBHOOK_SECRET } = require('../config/env');
 
 const router = express.Router();
 
@@ -24,7 +24,7 @@ router.get('/health', (req, res) => {
     followups_queued: followUpIds.length,
     model_leads: Object.values(leadTypes).filter(t => t === 'MODEL').length,
     env: {
-      OPENAI_API_KEY: OPENAI_API_KEY ? 'set' : 'MISSING',
+      ANTHROPIC_API_KEY: ANTHROPIC_API_KEY ? 'set' : 'MISSING',
       WEBHOOK_SECRET: WEBHOOK_SECRET ? 'set' : 'MISSING',
       SUPABASE: supabase ? 'connected' : 'MISSING (memory-only)',
     },

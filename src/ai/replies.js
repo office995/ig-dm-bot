@@ -1,5 +1,5 @@
 const { SYSTEM_PROMPT } = require('./prompts');
-const { callOpenAIRaw } = require('./openai');
+const { callClaudeRaw } = require('./anthropic');
 const {
   humanizeReply,
   enforceLength,
@@ -61,12 +61,12 @@ ${extraInstruction}`
 
   const fullPrompt = SYSTEM_PROMPT + contextNote + avoidNote + extraNote;
 
-  let text = await callOpenAIRaw('gpt-5.4-mini', fullPrompt, messages, 80);
+  let text = await callClaudeRaw('claude-haiku-4-5', fullPrompt, messages, 80);
   let finalText = humanizeReply(enforceLength(text));
 
   if (isTooSimilarReply(messages, finalText)) {
-    text = await callOpenAIRaw(
-      'gpt-5.4-mini',
+    text = await callClaudeRaw(
+      'claude-haiku-4-5',
       fullPrompt + '\n\nsay the same thing in a fresh, natural, conversational way. keep it concise and clear.',
       messages,
       80,

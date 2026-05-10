@@ -1,10 +1,10 @@
-const { OPENAI_API_KEY } = require('../config/env');
+const { ANTHROPIC_API_KEY } = require('../config/env');
 const { CLASSIFY_PROMPT } = require('./prompts');
-const { callOpenAIRaw } = require('./openai');
+const { callClaudeRaw } = require('./anthropic');
 
 function createClassifier(logToElla) {
   async function classifyIntent(message) {
-    if (!OPENAI_API_KEY || !OPENAI_API_KEY.startsWith('sk-')) {
+    if (!ANTHROPIC_API_KEY || !ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
       const msg = message.toLowerCase();
       if (/\b(onlyfans|model|creator|content|management)\b/i.test(msg)) return 'MODEL';
       if (/\b(party|hangout|pull up|come through)\b/i.test(msg)) return 'PERSONAL';
@@ -13,8 +13,8 @@ function createClassifier(logToElla) {
     }
 
     try {
-      const result = await callOpenAIRaw(
-        'gpt-5.4-mini',
+      const result = await callClaudeRaw(
+        'claude-haiku-4-5',
         CLASSIFY_PROMPT,
         [{ role: 'user', content: message }],
         10
