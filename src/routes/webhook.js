@@ -222,14 +222,15 @@ router.post('/webhook', requireSecret, async (req, res) => {
           aiText = await callOpenAI(conversations[cid], convoMeta);
         } catch (retryErr) {
           console.error('[WEBHOOK] OpenAI retry failed:', retryErr.message);
+          const fallbackText = 'one sec, slammed rn. back in a min';
           return res.json({
-            reply: 'hey give me a sec',
-            ai_reply: 'hey give me a sec',
+            reply: fallbackText,
+            ai_reply: fallbackText,
             paused: false,
             escalated: false,
             model_lead: false,
             version: 'v2',
-            content: { messages: [{ type: 'text', text: 'hey give me a sec' }] },
+            content: { messages: [{ type: 'text', text: fallbackText }] },
             _meta: { paused: false, escalated: false, model_lead: false },
           });
         }
@@ -263,7 +264,23 @@ router.post('/webhook', requireSecret, async (req, res) => {
         }
 
         dailyStats.modelLeads++;
-        return res.status(200).json(silentResponse({ paused: true, model_lead: true }));
+
+        // if the model produced an acknowledgment ("ok one sec, someone will hit you up"),
+        // send it before pausing. if it's empty, stay silent (legacy behavior).
+        if (!aiText) {
+          return res.status(200).json(silentResponse({ paused: true, model_lead: true }));
+        }
+
+        return res.json({
+          reply: aiText,
+          ai_reply: aiText,
+          paused: true,
+          escalated: false,
+          model_lead: true,
+          version: 'v2',
+          content: { messages: [{ type: 'text', text: aiText }] },
+          _meta: { paused: true, escalated: false, model_lead: true },
+        });
       }
 
       if (aiText.includes('[ESCALATE]')) {
