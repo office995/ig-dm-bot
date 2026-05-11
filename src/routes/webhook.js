@@ -49,6 +49,7 @@ const {
 const { logToElla } = require('../lib/logger');
 const { createClassifier } = require('../ai/classify');
 const { callOpenAI } = require('../ai/replies');
+const { matchIntent } = require('../ai/intents');
 
 const router = express.Router();
 
@@ -212,27 +213,36 @@ router.post('/webhook', requireSecret, async (req, res) => {
 
       let aiText;
 
-      try {
-        aiText = await callOpenAI(conversations[cid], convoMeta);
-      } catch (firstErr) {
-        console.warn('[WEBHOOK] OpenAI failed, retrying in 2s:', firstErr.message);
-        await sleep(2000);
-
+      // Hardcoded intent matcher — runs before the LLM.
+      // If the user's message matches one of the 20 known scenarios,
+      // reply with the exact template. Otherwise fall through to Claude.
+      const matched = matchIntent(msg);
+      if (matched) {
+        console.log('[INTENT]', { cid, intent: matched.intent });
+        aiText = matched.reply;
+      } else {
         try {
           aiText = await callOpenAI(conversations[cid], convoMeta);
-        } catch (retryErr) {
-          console.error('[WEBHOOK] OpenAI retry failed:', retryErr.message);
-          const fallbackText = 'one sec, slammed rn. back in a min';
-          return res.json({
-            reply: fallbackText,
-            ai_reply: fallbackText,
-            paused: false,
-            escalated: false,
-            model_lead: false,
-            version: 'v2',
-            content: { messages: [{ type: 'text', text: fallbackText }] },
-            _meta: { paused: false, escalated: false, model_lead: false },
-          });
+        } catch (firstErr) {
+          console.warn('[WEBHOOK] OpenAI failed, retrying in 2s:', firstErr.message);
+          await sleep(2000);
+
+          try {
+            aiText = await callOpenAI(conversations[cid], convoMeta);
+          } catch (retryErr) {
+            console.error('[WEBHOOK] OpenAI retry failed:', retryErr.message);
+            const fallbackText = 'one sec, slammed rn. back in a min';
+            return res.json({
+              reply: fallbackText,
+              ai_reply: fallbackText,
+              paused: false,
+              escalated: false,
+              model_lead: false,
+              version: 'v2',
+              content: { messages: [{ type: 'text', text: fallbackText }] },
+              _meta: { paused: false, escalated: false, model_lead: false },
+            });
+          }
         }
       }
 
