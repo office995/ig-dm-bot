@@ -110,8 +110,37 @@ function isTooSimilarReply(messages, candidate) {
     const overlap = candWords.filter(w => prevWords.has(w)).length;
     const ratio = candWords.length ? overlap / candWords.length : 0;
 
-    return ratio >= 0.8;
+    return ratio >= 0.6;
   });
+}
+
+// Returns the most-similar prior reply, or null. Used to feed the LLM
+// the specific phrasing it must avoid when regenerating.
+function findMostSimilarReply(messages, candidate) {
+  const cand = normalizeForSimilarity(candidate);
+  if (!cand) return null;
+
+  const assistantReplies = messages
+    .filter(m => m.role === 'assistant')
+    .slice(-8)
+    .map(m => ({ raw: m.content, norm: normalizeForSimilarity(m.content) }))
+    .filter(r => r.norm);
+
+  let best = null;
+  let bestRatio = 0;
+  for (const r of assistantReplies) {
+    if (r.norm === cand) return r.raw;
+    if (r.norm.includes(cand) || cand.includes(r.norm)) return r.raw;
+    const prevWords = new Set(r.norm.split(' '));
+    const candWords = cand.split(' ');
+    const overlap = candWords.filter(w => prevWords.has(w)).length;
+    const ratio = candWords.length ? overlap / candWords.length : 0;
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      best = r.raw;
+    }
+  }
+  return bestRatio >= 0.6 ? best : null;
 }
 
 module.exports = {
@@ -119,4 +148,5 @@ module.exports = {
   enforceLength,
   normalizeForSimilarity,
   isTooSimilarReply,
+  findMostSimilarReply,
 };

@@ -4,6 +4,7 @@ const {
   humanizeReply,
   enforceLength,
   isTooSimilarReply,
+  findMostSimilarReply,
 } = require('../lib/text');
 
 function userShowsLinkIntent(text) {
@@ -21,8 +22,7 @@ async function callOpenAI(messages, convoMeta = {}, extraInstruction = '') {
     .filter(m => m.role === 'assistant')
     .slice(-6)
     .map(m => m.content.trim())
-    .filter(Boolean)
-    .join('\n- ');
+    .filter(Boolean);
 
   let contextNote = `
 
@@ -33,9 +33,7 @@ conversation state:
 - two short lines max when needed
 - answer exactly what they asked
 - stay natural and conversational
-- do not overexplain
-- avoid repeating the same opener or wording
-- if they ask the same thing again, respond with the same meaning in different words`;
+- do not overexplain`;
 
   if (!linkSent && userShowsLinkIntent(lastUserMessage)) {
     contextNote += `
@@ -44,12 +42,19 @@ www.thejungle.life
 - keep the link on its own line`;
   }
 
-  const avoidNote = recentAssistantReplies
+  const avoidNote = recentAssistantReplies.length
     ? `
 
-recent assistant replies to avoid repeating:
-- ${recentAssistantReplies}
-do not reuse the same wording, opener, or sentence structure from any of those.`
+==================================================
+your previous replies in this conversation (DO NOT REPEAT)
+==================================================
+${recentAssistantReplies.map((r, i) => `${i + 1}. "${r}"`).join('\n')}
+
+hard rules:
+- do not reuse any opener from above
+- do not reuse the same sentence structure
+- do not say the same thing the same way twice
+- if you would say something similar to any of the above, change it. fresh wording, same meaning.`
     : '';
 
   const extraNote = extraInstruction
@@ -61,16 +66,24 @@ ${extraInstruction}`
 
   const fullPrompt = SYSTEM_PROMPT + contextNote + avoidNote + extraNote;
 
+  // First attempt
   let text = await callClaudeRaw('claude-haiku-4-5', fullPrompt, messages, 80);
   let finalText = humanizeReply(enforceLength(text));
 
-  if (isTooSimilarReply(messages, finalText)) {
-    text = await callClaudeRaw(
-      'claude-haiku-4-5',
-      fullPrompt + '\n\nsay the same thing in a fresh, natural, conversational way. keep it concise and clear.',
-      messages,
-      80,
-    );
+  // Retry up to twice if too similar to a prior reply, surfacing the offending text
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!isTooSimilarReply(messages, finalText)) break;
+
+    const offending = findMostSimilarReply(messages, finalText);
+    const stricter =
+      fullPrompt +
+      `\n\nyour draft reply was too similar to a previous one. ${
+        offending
+          ? `you already said: "${offending}". do NOT use that phrasing, opener, or structure again.`
+          : 'rephrase completely.'
+      } same substance, totally different wording. shorter sentences, different opener.`;
+
+    text = await callClaudeRaw('claude-haiku-4-5', stricter, messages, 80);
     finalText = humanizeReply(enforceLength(text));
   }
 
