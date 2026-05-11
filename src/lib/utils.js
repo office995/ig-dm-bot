@@ -26,10 +26,40 @@ function getTurnCount(contactId) {
   return conversations[contactId].filter(m => m.role === 'user').length;
 }
 
+const LINK_URL = 'www.thejungle.life';
+const LINK_REGEX = /(https?:\/\/(?:www\.)?thejungle\.life\/?|www\.thejungle\.life)/gi;
+
+// Strict: only matches when the user clearly asks to be sent the URL.
+// Used to override the "link already sent — don't repeat it" rule.
+function userExplicitlyAsksForLink(text) {
+  return /\b(send\s*(me\s*)?(the\s*)?link|drop\s*(the\s*)?link|share\s*(the\s*)?link|gimme\s*(the\s*)?link|need\s*(the\s*)?link|where'?s\s*the\s*link|where\s*is\s*the\s*link|whats\s*the\s*(link|website|site|url|address)|what'?s\s*the\s*(link|website|site|url|address)|link\s*again|website\s*again|resend\s*(the\s*)?link|send\s*it\s*again)\b/i.test(text || '');
+}
+
+// Splits an AI-generated reply into (body, link) so they can be sent as
+// two separate Instagram DMs. Returns { body, link } where link may be ''.
+function splitBodyAndLink(text) {
+  if (!text) return { body: '', link: '' };
+  const hasLink = LINK_REGEX.test(text);
+  LINK_REGEX.lastIndex = 0;
+  if (!hasLink) return { body: text.trim(), link: '' };
+
+  const body = text
+    .replace(LINK_REGEX, '')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
+
+  return { body, link: LINK_URL };
+}
+
 module.exports = {
   sanitize,
   sleep,
   isEnglish,
   trimConversation,
   getTurnCount,
+  LINK_URL,
+  LINK_REGEX,
+  userExplicitlyAsksForLink,
+  splitBodyAndLink,
 };

@@ -6,6 +6,7 @@ const {
   isTooSimilarReply,
   findMostSimilarReply,
 } = require('../lib/text');
+const { userExplicitlyAsksForLink } = require('../lib/utils');
 
 function userShowsLinkIntent(text) {
   return /\b(join|sign up|signup|start|buy|price|cost|how much|where|link|website|site|apply|interested|ready)\b/i.test(text || '');
@@ -17,6 +18,8 @@ async function callOpenAI(messages, convoMeta = {}, extraInstruction = '') {
 
   const lastUserMessage =
     [...messages].reverse().find(m => m.role === 'user')?.content || '';
+
+  const userAskedAgain = userExplicitlyAsksForLink(lastUserMessage);
 
   const recentAssistantReplies = messages
     .filter(m => m.role === 'assistant')
@@ -35,11 +38,30 @@ conversation state:
 - stay natural and conversational
 - do not overexplain`;
 
-  if (!linkSent && userShowsLinkIntent(lastUserMessage)) {
+  if (linkSent && !userAskedAgain) {
     contextNote += `
-- if it feels natural here, include:
-www.thejungle.life
-- keep the link on its own line`;
+
+LINK RULE FOR THIS REPLY (very important):
+- you have ALREADY sent www.thejungle.life to this person earlier in the conversation
+- do NOT paste the link again in this reply
+- if you need to refer to it, say something like "in the link i sent above", "check the link above", or "it's in the link i sent" — do not paste the URL
+- the user did not explicitly ask for the link again, so do not include it`;
+  } else if (linkSent && userAskedAgain) {
+    contextNote += `
+
+LINK RULE FOR THIS REPLY:
+- the user is explicitly asking for the link again — it's ok to send it
+- end your reply with the link on its own line:
+www.thejungle.life`;
+  } else if (!linkSent && userShowsLinkIntent(lastUserMessage)) {
+    contextNote += `
+
+LINK RULE FOR THIS REPLY:
+- if it feels natural here, include the link on its own line at the end:
+www.thejungle.life`;
+  } else if (!linkSent) {
+    contextNote += `
+- only paste www.thejungle.life if they ask for the link, ask pricing, ask for proof, or clearly sound ready to join`;
   }
 
   const avoidNote = recentAssistantReplies.length

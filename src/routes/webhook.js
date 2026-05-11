@@ -28,6 +28,10 @@ const {
   isEnglish,
   trimConversation,
   getTurnCount,
+  LINK_URL,
+  LINK_REGEX,
+  userExplicitlyAsksForLink,
+  splitBodyAndLink,
 } = require('../lib/utils');
 const { checkRateLimit } = require('../lib/rateLimit');
 const { createDedupHelpers } = require('../lib/dedup');
@@ -320,12 +324,6 @@ router.post('/webhook', requireSecret, async (req, res) => {
         await dbSaveMessage(dbConvo.id, dbContact.id, 'outbound', aiText);
       }
 
-      if (aiText.includes('www.thejungle.life') && !convoMeta.has_sent_link) {
-        linkSentCache[cid] = true;
-        if (dbConvo) await dbMarkLinkSent(dbConvo.id);
-        convoMeta.has_sent_link = true;
-      }
-
       if (!paused[cid] && leadTypes[cid] === 'BUYER') {
         const attemptsSent = followUpAttempts[cid] || 0;
 
@@ -372,7 +370,50 @@ router.post('/webhook', requireSecret, async (req, res) => {
         .replace(/[ \t]{2,}/g, ' ')
         .trim();
 
-      const finalText = cleanReply(aiText);
+      const cleanedText = cleanReply(aiText);
+
+      // Link delivery logic:
+      // - if link is in the reply AND user explicitly asked again OR link not yet sent → send as separate message
+      // - if link is in the reply AND link already sent AND user did not explicitly ask → strip it
+      const linkAlreadySent = convoMeta.has_sent_link === true;
+      const userAskedForLink = userExplicitlyAsksForLink(msg);
+      const replyContainsLink = LINK_REGEX.test(cleanedText);
+      LINK_REGEX.lastIndex = 0;
+
+      let bodyText = cleanedText;
+      let linkText = '';
+
+      if (replyContainsLink) {
+        const split = splitBodyAndLink(cleanedText);
+        bodyText = split.body;
+        if (!linkAlreadySent || userAskedForLink) {
+          linkText = split.link;
+        }
+      }
+
+      // Track link sent state if we're actually sending it now
+      if (linkText && !linkAlreadySent) {
+        linkSentCache[cid] = true;
+        if (dbConvo) await dbMarkLinkSent(dbConvo.id);
+        convoMeta.has_sent_link = true;
+      }
+
+      // Build messages array — two sends if both body and link, one if just body
+      const messagesArr = [];
+      if (bodyText) messagesArr.push({ type: 'text', text: bodyText });
+      if (linkText) messagesArr.push({ type: 'text', text: linkText });
+      if (messagesArr.length === 0) {
+        // Edge case: AI generated only the link and we're suppressing it
+        // (already sent, no explicit re-ask). Fall back to a reference.
+        if (replyContainsLink && linkAlreadySent && !userAskedForLink) {
+          messagesArr.push({ type: 'text', text: 'it\'s all in the link i sent above' });
+        } else {
+          messagesArr.push({ type: 'text', text: cleanedText });
+        }
+      }
+
+      // Concatenated form for legacy reply/ai_reply fields
+      const finalText = messagesArr.map(m => m.text).join('\n');
 
       replyCooldown[cid] = Date.now();
 
@@ -383,8 +424,8 @@ router.post('/webhook', requireSecret, async (req, res) => {
         escalated,
         model_lead: modelLead,
         version: 'v2',
-        content: { messages: [{ type: 'text', text: finalText }] },
-        _meta: { paused: false, escalated, model_lead: modelLead },
+        content: { messages: messagesArr },
+        _meta: { paused: false, escalated, model_lead: modelLead, link_sent_now: !!linkText },
       });
     } finally {
       delete processingContacts[cid];
