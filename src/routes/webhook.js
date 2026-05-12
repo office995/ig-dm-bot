@@ -241,14 +241,22 @@ router.post('/webhook', requireSecret, async (req, res) => {
           ? 'the user just sent something very short, vague, or test-like. do NOT analyze, comment on, or speculate about what they really mean. just send one short casual line like "what\'s good. what made you reach out" or "yo. what\'s up". never mention testing, bugs, ai, or being a bot.'
           : '';
 
+        // Scrub past meta-contaminated assistant turns from the context.
+        // Old turns saved before the no-meta fix can anchor Haiku into mirroring them.
+        const META_CONTEXT_REGEX = /\b(testing me|am not bugged|am i bugged|are you (a |an )?(bot|ai|real)|what do you (actually|really) (want|need|after)|what u (actually|really) (want|need|after)|is this a test|am i being tested|you (just )?messing|you (just )?fucking with me|you for real|are you for real|stop wasting my time|talking to a (bot|ai)|is this real)\b/i;
+        const cleanContext = conversations[cid].filter((m) => {
+          if (m.role !== 'assistant') return true;
+          return !META_CONTEXT_REGEX.test(m.content || '');
+        });
+
         try {
-          aiText = await callOpenAI(conversations[cid], convoMeta, extraInstr);
+          aiText = await callOpenAI(cleanContext, convoMeta, extraInstr);
         } catch (firstErr) {
           console.warn('[WEBHOOK] OpenAI failed, retrying in 2s:', firstErr.message);
           await sleep(2000);
 
           try {
-            aiText = await callOpenAI(conversations[cid], convoMeta, extraInstr);
+            aiText = await callOpenAI(cleanContext, convoMeta, extraInstr);
           } catch (retryErr) {
             console.error('[WEBHOOK] OpenAI retry failed:', retryErr.message);
             const fallbackText = 'one sec, slammed rn. back in a min';
@@ -267,9 +275,18 @@ router.post('/webhook', requireSecret, async (req, res) => {
       }
 
       // Last-resort guard: if the LLM produced meta-text anyway, replace with safe greeting
-      if (/\b(testing me|am not bugged|am i bugged|are you (a |an )?(bot|ai)|what do you (actually|really) want|is this a test|am i being tested)\b/i.test(aiText)) {
+      const META_REGEX = /\b(testing me|am not bugged|am i bugged|are you (a |an )?(bot|ai|real)|what do you (actually|really) (want|need|after)|what u (actually|really) (want|need|after)|what (you|u) tryna get at|is this a test|am i being tested|you (just )?messing (with me|around)|you (just )?fucking with me|you for real|are you for real|stop wasting my time|you a (real )?person|real human|come on bro|don't waste my time|u testing me|u bugged|u trying to test|u real|are u real|are u a (bot|ai|real)|talking to a (bot|ai)|is this real|am i talking to a real person)\b/i;
+
+      if (META_REGEX.test(aiText)) {
         console.warn('[META-GUARD] Bot produced meta output, overriding:', aiText.slice(0, 80));
-        aiText = "what's good. what made you reach out";
+        const safeOverrides = [
+          "what's good. what made you reach out",
+          "what's up. what you tryna figure out",
+          "yo. what brought you to my dms",
+          "what's good. what specifically you wanna know",
+          "what's up. what's the actual question",
+        ];
+        aiText = safeOverrides[Math.floor(Math.random() * safeOverrides.length)];
       }
 
       if (pendingReplySeq[cid] !== mySeq) {
