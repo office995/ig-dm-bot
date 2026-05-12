@@ -88,6 +88,18 @@ router.post('/webhook', requireSecret, async (req, res) => {
     const eventKey = sanitize(String(event_id || message_id || mid || ''));
     const messageTs = Number(timestamp || sent_at || Date.now()) || Date.now();
 
+    // Detect test/gibberish input. If matched, route through the LLM with a
+    // strong nudge to ignore the meta nature of the message and just greet.
+    const isLowSignalInput = (() => {
+      const t = (msg || '').trim().toLowerCase();
+      if (!t) return true;
+      if (t.length <= 2) return true;
+      if (/^(test|testing|hello|hi|hey|yo|sup|wsp|wassup|ok|okay|k|cool|nice|hmm|idk|\.|\?|\!)+[\s\.,\?\!]*$/i.test(t)) return false; // normal short greetings are fine
+      if (/^(asdf|qwer|gibberish|lorem|abc|xyz|\?+|\.+|\!+|test\s*\d*)$/i.test(t)) return true;
+      if (/^[\W\d_]+$/.test(t)) return true; // only symbols/numbers
+      return false;
+    })();
+
     const dedupKey = eventKey ? `${cid}:event:${eventKey}` : `${cid}:msg:${msg.slice(0, 80)}`;
     const nowTs = Date.now();
 
@@ -225,14 +237,18 @@ router.post('/webhook', requireSecret, async (req, res) => {
         console.log('[INTENT]', { cid, intent: matched.intent });
         aiText = matched.reply;
       } else {
+        const extraInstr = isLowSignalInput
+          ? 'the user just sent something very short, vague, or test-like. do NOT analyze, comment on, or speculate about what they really mean. just send one short casual line like "what\'s good. what made you reach out" or "yo. what\'s up". never mention testing, bugs, ai, or being a bot.'
+          : '';
+
         try {
-          aiText = await callOpenAI(conversations[cid], convoMeta);
+          aiText = await callOpenAI(conversations[cid], convoMeta, extraInstr);
         } catch (firstErr) {
           console.warn('[WEBHOOK] OpenAI failed, retrying in 2s:', firstErr.message);
           await sleep(2000);
 
           try {
-            aiText = await callOpenAI(conversations[cid], convoMeta);
+            aiText = await callOpenAI(conversations[cid], convoMeta, extraInstr);
           } catch (retryErr) {
             console.error('[WEBHOOK] OpenAI retry failed:', retryErr.message);
             const fallbackText = 'one sec, slammed rn. back in a min';
@@ -248,6 +264,12 @@ router.post('/webhook', requireSecret, async (req, res) => {
             });
           }
         }
+      }
+
+      // Last-resort guard: if the LLM produced meta-text anyway, replace with safe greeting
+      if (/\b(testing me|am not bugged|am i bugged|are you (a |an )?(bot|ai)|what do you (actually|really) want|is this a test|am i being tested)\b/i.test(aiText)) {
+        console.warn('[META-GUARD] Bot produced meta output, overriding:', aiText.slice(0, 80));
+        aiText = "what's good. what made you reach out";
       }
 
       if (pendingReplySeq[cid] !== mySeq) {
